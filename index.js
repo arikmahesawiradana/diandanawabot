@@ -1,5 +1,20 @@
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = require('@whiskeysockets/baileys');
 const fs = require('fs');
+const express = require('express');
+const { error } = require('console');
+
+const app = express();
+const PORT = 3000;
+
+const conversationsFile = 'conversations.json';
+const saveConversation = (msg) => {
+    let conversations = [];
+    if (fs.existsSync(conversationsFile)) {
+        conversations = JSON.parse(fs.readFileSync(conversationsFile));
+    }
+    conversations.push(msg);
+    fs.writeFileSync(conversationsFile, JSON.stringify(conversations, null, 2));
+};
 
 const startBot = async () => {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
@@ -53,7 +68,7 @@ const startBot = async () => {
         // Cek apakah pesan yang sama sudah dibalas sebelumnya
         if (lastMessage[sender] === textMessage.trim()) return;
         lastMessage[sender] = textMessage.trim(); // Simpan pesan terakhir
-
+        saveConversation({ sender, message: textMessage.trim(), timestamp: Date.now() });
         console.log(`Message from ${sender}: ${textMessage}`);
 
         let reply;
@@ -121,11 +136,64 @@ const startBot = async () => {
                         `Balas pesan ini dengan 1, 2, 3, 4, atau 5 ya! 📩🚀`;
                 break;
             default:
-                reply = `Terima kasih admin kami akan memblas pesan anda. Silahkan kirim pesan "menu" untuk melihat informasi lainnya`;
+                reply = "random message";
         }
+        if (reply === "random message"){
+            console.log(reply);
+        }
+        else{
+            sendReplyDelayed(sock, sender, reply);
+        }
+    });
+    app.get('/asjsjljso2ueumdpjoh1u2iashsanlasla/send', async (req, res) => {
+        let { num, text } = req.query;
+        if (!num || !text) return res.json({ error: 'Missing parameters' });
+        await sock.sendMessage(num, { text });
+        text = "Me:\n" + text;
+        saveConversation({ sender: num, message: text, timestamp: Date.now() });
+        res.json({ success: true, sentTo: num, message: text });
+    });
 
-        // Kirim pesan dengan delay
-        sendReplyDelayed(sock, sender, reply);
+    app.get('/asjsjljso2ueumdpjoh1u2iashsanlasla/contact', (req, res) => {
+        let conversations = [];
+        if (fs.existsSync(conversationsFile)) {
+            conversations = JSON.parse(fs.readFileSync(conversationsFile));
+        }
+        const contacts = [...new Set(conversations.map(c => c.sender))];
+        res.json({ contacts });
+    });
+
+    app.get('/asjsjljso2ueumdpjoh1u2iashsanlasla/chat', (req, res) => {
+        const { num } = req.query;
+        if (!num) return res.json({ error: 'Missing number' });
+    
+        let conversations = [];
+        if (fs.existsSync(conversationsFile)) {
+            conversations = JSON.parse(fs.readFileSync(conversationsFile));
+        }
+    
+        const history = conversations
+            .filter(c => c.sender === num)
+            .map(c => ({
+                ...c,
+                timestamp: new Date(c.timestamp).toLocaleString() // Convert timestamp
+            }));
+    
+        res.json({ history });
+    });
+    app.get('/asjsjljso2ueumdpjoh1u2iashsanlasla/delete', (req, res) => {
+        const { num } = req.query;
+        if (!num) {
+            res.status(404).json({ error: 'No Number', status: 404 });
+        }
+        let conversations = [];
+        if (fs.existsSync(conversationsFile)) {
+            conversations = JSON.parse(fs.readFileSync(conversationsFile));
+        }
+        conversations = conversations.filter(c => c.sender !== num);
+        fs.writeFileSync(conversationsFile, JSON.stringify(conversations, null, 2));
+        res.json({ success: true, message: `Chat history for ${num} deleted` });
     });
 };
+app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
 startBot();
